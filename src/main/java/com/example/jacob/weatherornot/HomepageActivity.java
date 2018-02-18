@@ -34,6 +34,7 @@ public class HomepageActivity extends AppCompatActivity {
     TextView temptv, citytv, degreetv, conditiontv;
     ImageView ICON;
     Weather_Hub_Model weather = new Weather_Hub_Model();
+    String Icon;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,52 +72,6 @@ public class HomepageActivity extends AppCompatActivity {
         weatherTask.execute(new String[]{Coordinates + "&unites=imperial"});
     }
 
-    private class DownloadImageAsyncTask extends AsyncTask<String, Void, Bitmap> {
-
-        @Override
-        protected Bitmap doInBackground(String... params) {
-            return downloadedImage(params[0]);
-        }
-
-        @Override
-        protected void onPostExecute(Bitmap bitmap) {
-            ICON.setImageBitmap(bitmap);
-        }
-
-        private Bitmap downloadedImage(String Code){
-            final DefaultHttpClient client = new DefaultHttpClient();
-            final HttpGet getRequest = new HttpGet(Utilities.ICON_API_URL + Code + ".png");
-
-            try {
-
-                HttpResponse response = client.execute(getRequest);
-                final int statusCode = response.getStatusLine().getStatusCode();
-
-                if (statusCode != HttpStatus.SC_OK){
-                    Log.e("DownloadImage", "error:" + statusCode);
-                    return null;
-                }
-                final HttpEntity entity = response.getEntity();
-
-                if (entity != null) {
-
-                    InputStream inputStream = null;
-
-                    inputStream = entity.getContent();
-
-                    final Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                    return bitmap;
-
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-    }
-
-
 
     private class WeatherTask extends AsyncTask<String, Void, Weather_Hub_Model> {
 
@@ -124,9 +79,7 @@ public class HomepageActivity extends AppCompatActivity {
         protected Weather_Hub_Model doInBackground(String... params) {
 
             String data = ((new Weather_Client()).GetWeatherData(params[0]));
-            weather.iconData = weather.currentCondition.getIcon();
             weather = JSON_Parser.getWeather(data);
-            new DownloadImageAsyncTask().execute(weather.iconData);
             return weather;
         }
 
@@ -134,6 +87,10 @@ public class HomepageActivity extends AppCompatActivity {
         protected void onPostExecute(Weather_Hub_Model weather_hub_model) {
 
             super.onPostExecute(weather_hub_model);
+            applyIcon();
+
+            Log.d("Message", weather.currentCondition.getCondtion());
+
 
             double KELVIN_TO_FAHRENHEIT = ((weather.currentCondition.getTemp() * 1.8) - 459.67);
 
@@ -144,7 +101,34 @@ public class HomepageActivity extends AppCompatActivity {
             citytv.setText(weather.location.getCity());
             conditiontv.setText(weather.currentCondition.getDescription());
 
+
         }
     }
+
+    public void applyIcon(){
+
+        Icon = weather.currentCondition.getDescription();
+
+        if (Icon.equals("clear sky")){
+            ICON.setImageResource(R.drawable.clear_sky);
+        }
+        if(Icon.equals("scattered clouds")){
+            ICON.setImageResource(R.drawable.partly_cloudy);
+        }
+        if(Icon.equals("overcast clouds")){
+            ICON.setImageResource(R.drawable.overcast_clouds);
+        }
+        if(Icon.equals("broken clouds")){
+            ICON.setImageResource(R.drawable.broken_clouds);
+        }
+
+
+        return;
+
+    }
+
+
+
+
 }
 
