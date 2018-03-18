@@ -2,6 +2,7 @@ package com.example.jacob.weatherornot;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -12,6 +13,10 @@ import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.Spinner;
@@ -29,21 +34,26 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.DecimalFormat;
 
+import Information.Information_Directory;
 import Information.JSON_Parser;
 import Information.Weather_Client;
 import Structure_Model.Weather_Hub_Model;
+import Utility.DISPLAY_Utility;
 import Utility.GPS_Utility;
 import Utility.Utilities;
 
-public class HomepageActivity extends AppCompatActivity {
+import static Information.Information_Directory.PassedInt;
+import static Information.Information_Directory.PassedString;
+import static Information.Information_Directory.PassedStringExtra;
+import static java.sql.DriverManager.println;
+
+public class HomepageActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener{
 
     TextView temptv, citytv, degreetv, conditiontv;
     ImageView ICON;
     Weather_Hub_Model weather = new Weather_Hub_Model();
-    //
     SharedPreferences LocationSaver;
-    //
-    String Icon, Description;
+    String Coordinates;
     Spinner ActivityList;
     SwipeRefreshLayout SwipeDown;
 
@@ -52,7 +62,6 @@ public class HomepageActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.homepage);
         LocationSaver = getPreferences(MODE_PRIVATE);
-
         temptv = (TextView) findViewById(R.id.temptv);
         citytv = (TextView) findViewById(R.id.citytv);
         degreetv = (TextView) findViewById(R.id.degreetv);
@@ -60,16 +69,32 @@ public class HomepageActivity extends AppCompatActivity {
         ICON = (ImageView) findViewById(R.id.ICON);
         SwipeDown = (SwipeRefreshLayout) findViewById(R.id.SwipeDown);
         ActivityList = (Spinner) findViewById(R.id.spinner);
-
-
         SwipeDown.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
+                SwipeDown.setRefreshing(true);
                 receiveGpsLocation();
             }
         });
-
         receiveGpsLocation();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.about_menu, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if(item.getItemId() == R.id.Instructions){
+
+        }
+        if(item.getItemId() == R.id.About){
+            Intent GoToAboutAcitvity = new Intent(this, AboutActivity.class);
+            startActivity(GoToAboutAcitvity);
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     public void receiveGpsLocation() {
@@ -78,15 +103,14 @@ public class HomepageActivity extends AppCompatActivity {
         GPS_Utility GPS = new GPS_Utility(getApplicationContext());
         Location GPS_location = GPS.getGPS_LOCATION();
         SharedPreferences.Editor NewSave = LocationSaver.edit();
-        SwipeDown.setRefreshing(true);
-        if (GPS_location != null) {
 
+        if (GPS_location != null) {
 
             double LATITUDE = GPS_location.getLatitude();
             double LONGITUDE = GPS_location.getLongitude();
 
 //          Formats API URL
-            String Coordinates = new String("lat=" + LATITUDE + "&lon=" + LONGITUDE);
+            Coordinates = new String("lat=" + LATITUDE + "&lon=" + LONGITUDE);
             NewSave.putString("saved coordinates", Coordinates);
             NewSave.commit();
             receiveWeatherInformation(Coordinates);
@@ -95,14 +119,17 @@ public class HomepageActivity extends AppCompatActivity {
             String LastKnowCoordinates = LocationSaver.getString("saved coordinates", "");
             receiveWeatherInformation(LastKnowCoordinates);
         }
-
     }
 
     public void receiveWeatherInformation(String Coordinates) {
-        WeatherTask weatherTask = new WeatherTask();
-        weatherTask.execute(new String[]{Coordinates + "&unites=imperial"});
-    }
 
+        WeatherTask weatherTask = new WeatherTask();
+        if(Coordinates == null){
+            FailSafe();
+        }else {
+            weatherTask.execute(new String[]{Coordinates + "&unites=imperial"});
+        }
+    }
 
     private class WeatherTask extends AsyncTask<String, Void, Weather_Hub_Model> {
 
@@ -116,113 +143,43 @@ public class HomepageActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(Weather_Hub_Model weather_hub_model) {
-
             super.onPostExecute(weather_hub_model);
-
-            if (weather.currentCondition.getCondtion() == null) {
-                FailSafe();
-            } else {
-
-                applyIcon();
-                formatDescription();
-
-                Log.d("Message", weather.currentCondition.getDescription());
-
-                ArrayAdapter<String> ArrayForActivityList = new ArrayAdapter<String>(HomepageActivity.this,
-                        android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.Activities));
-
-                ArrayForActivityList.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                ActivityList.setAdapter(ArrayForActivityList);
-
-
-                double KELVIN_TO_FAHRENHEIT = ((weather.currentCondition.getTemp() * 1.8) - 459.67);
-
-                DecimalFormat decimalFormat = new DecimalFormat("#");
-                String FormatTemperature = decimalFormat.format(KELVIN_TO_FAHRENHEIT);
-
-                SwipeDown.setRefreshing(false);
-                temptv.setText(FormatTemperature);
-                citytv.setText(weather.location.getCity());
-            }
+            ICON.setImageResource(new DISPLAY_Utility().applyIcon(weather.currentCondition.getCondtion()));
+            conditiontv.setText(new DISPLAY_Utility().formatDescription(weather.currentCondition.getDescription()));
+            ICON.setImageResource(new DISPLAY_Utility().ICON_CORRECTION_CHECK(weather.currentCondition.getDescription(),
+               new DISPLAY_Utility().applyIcon(weather.currentCondition.getCondtion())));
+            temptv.setText(new DISPLAY_Utility().KELVIN_TO_FAHRENHEIT(weather.currentCondition.getTemp()));
+            citytv.setText(weather.location.getCity());
+            ArrayAdapter<String> ArrayForActivityList = new ArrayAdapter<String>(HomepageActivity.this,
+                android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.Activities));
+            ArrayForActivityList.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            ActivityList.setAdapter(ArrayForActivityList);
+            ActivityList.setOnItemSelectedListener(HomepageActivity.this);
+            SwipeDown.setRefreshing(false);
         }
+    }
 
-        public void applyIcon() {
+    public void FailSafe() {
+        Toast.makeText(getApplicationContext(),"Error Connecting to Server", Toast.LENGTH_LONG);
+    }
 
-            Icon = weather.currentCondition.getCondtion();
+    @Override
+    public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+        String SelectedActivity = adapterView.getItemAtPosition(i).toString();
 
-            if (Icon.equals("Rain")) {
-                ICON.setImageResource(R.drawable.rain);
-            }
-            if (Icon.equals("Snow")) {
-                ICON.setImageResource(R.drawable.snow);
-            }
-            if (Icon.equals("Mist")) {
-                ICON.setImageResource(R.drawable.mist);
-            }
-            if (Icon.equals("Clear")) {
-                ICON.setImageResource(R.drawable.clear_sky);
-            }
-            if (Icon.equals("Clouds")) {
-                ICON.setImageResource(R.drawable.partly_cloudy);
-            }
-
-            return;
-
+        if(i == 0){}
+        else {
+            Toast.makeText(HomepageActivity.this, "Here", Toast.LENGTH_LONG);
+            Intent GoToActivity = new Intent(this, ActivityInfo.class);
+            GoToActivity.putExtra(PassedString, SelectedActivity);
+            Coordinates = LocationSaver.getString("saved coordinates", "");
+            GoToActivity.putExtra(PassedStringExtra, Coordinates);
+            startActivity(GoToActivity);
         }
+    }
 
-
-        public void formatDescription() {
-
-            Description = weather.currentCondition.getDescription();
-
-            if (Description.equals("clear sky")) {
-                conditiontv.setText("Clear Skys");
-            }
-            if (Description.equals("rain and drizzle")) {
-                conditiontv.setText("Rain and Drizzle");
-            }
-            if (Description.equals("haze")) {
-                conditiontv.setText("Haze");
-                ICON.setImageResource(R.drawable.mist);
-            }
-            if (Description.equals("light rain and snow")) {
-                conditiontv.setText("Light Rain and Snow");
-            }
-            if (Description.equals("scattered clouds")) {
-                conditiontv.setText("Scattered Clouds");
-                ICON.setImageResource(R.drawable.partly_cloudy);
-            }
-            if (Description.equals("overcast clouds")) {
-                conditiontv.setText("Overcast Clouds");
-                ICON.setImageResource(R.drawable.partly_cloudy);
-            }
-            if (Description.equals("broken clouds")) {
-                conditiontv.setText("Broken Clouds");
-                ICON.setImageResource(R.drawable.partly_cloudy);
-            }
-            if (Description.equals("moderate rain")) {
-                conditiontv.setText("Moderate Rain");
-            }
-            if (Description.equals("light rain")) {
-                conditiontv.setText("Light Rain");
-            }
-            if (Description.equals("few clouds")) {
-                conditiontv.setText("Few Clouds");
-                ICON.setImageResource(R.drawable.partly_cloudy);
-            }
-            if (Description.equals("mist")) {
-                conditiontv.setText("Mist");
-            }
-            if (Description.equals("light snow")) {
-                conditiontv.setText("Light Snow");
-            }
-
-            return;
-        }
-
-        public void FailSafe() {
-            Toast.makeText(getApplicationContext(),"Error Connecting to Server", Toast.LENGTH_LONG);
-        }
+    @Override
+    public void onNothingSelected(AdapterView<?> adapterView) {
     }
 }
 
